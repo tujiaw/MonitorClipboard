@@ -5,10 +5,9 @@
 #pragma once
 
 #include <string>
-
-// 自定义消息
-// 获取剪切板内容
-#define WM_CUSTOM_GET_CLIPBOARD WM_USER + 1
+#include <sstream>
+#include "HookEvent.h"
+#include "Constant.h"
 
 class CMainDlg : public CDialogImpl<CMainDlg>, public CUpdateUI<CMainDlg>,
 		public CMessageFilter, public CIdleHandler
@@ -70,7 +69,12 @@ public:
 		m_hwndNextViewer = nullptr;
 		m_btnStart.Attach(GetDlgItem(IDC_BUTTON_START));
 		m_listContent.Attach(GetDlgItem(IDC_LIST_HISTEXT));
-
+		m_staticMouse.Attach(GetDlgItem(IDC_STATIC_MOUSEPOS));
+		m_staticKeyboard.Attach(GetDlgItem(IDC_STATIC_KEYBOARD));
+		HookEvent::instance()->addMessageCallback(WM_MOUSEMOVE,
+			std::bind(&CMainDlg::OnMouseMoveHook, this, std::placeholders::_1, std::placeholders::_2));
+		HookEvent::instance()->addMessageCallback(WM_KEYDOWN,
+			std::bind(&CMainDlg::OnKeyDownHook, this, std::placeholders::_1, std::placeholders::_2));
 		return TRUE;
 	}
 
@@ -81,7 +85,7 @@ public:
 		ATLASSERT(pLoop != NULL);
 		pLoop->RemoveMessageFilter(this);
 		pLoop->RemoveIdleHandler(this);
-
+		HookEvent::instance()->clearMessageCallback();
 		return 0;
 	}
 
@@ -151,6 +155,7 @@ public:
 		DestroyWindow();
 		::PostQuitMessage(nVal);
 	}
+
 	LRESULT OnBnClickedButtonStart(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
 		TCHAR buf[1024] = { 0 };
@@ -158,17 +163,47 @@ public:
 		std::wstring wstr(buf);
 		if (wstr == L"Start") {
 			m_hwndNextViewer = SetClipboardViewer();
+			HookEvent::instance()->start();
 			m_btnStart.SetWindowText(L"Stop");
 		} else {
 			ChangeClipboardChain(m_hwndNextViewer);
+			HookEvent::instance()->stop();
 			m_btnStart.SetWindowText(L"Start");
 		}
 		
 		return 0;
 	}
 
+	void OnMouseMoveHook(WPARAM wParam, LPARAM lParam)
+	{
+		MOUSEHOOKSTRUCT *p = (MOUSEHOOKSTRUCT*)lParam;
+		if (p) {
+			std::wstringstream wstr;
+			wstr << "x:" << p->pt.x << " ,y:" << p->pt.y;
+			m_staticMouse.SetWindowText(wstr.str().c_str());
+		}
+	}
+
+	void OnKeyDownHook(WPARAM wParam, LPARAM lParam)
+	{
+		KBDLLHOOKSTRUCT *p = (KBDLLHOOKSTRUCT*)lParam;
+		if (p) {
+			wchar_t buff[10], oldBuff[256];
+			BYTE keyState[256] = { 0 };
+			int result = ToUnicodeEx(p->vkCode, p->scanCode, keyState, buff, _countof(buff), 0, NULL);
+			m_staticKeyboard.GetWindowText(oldBuff, _countof(oldBuff));
+			std::wstring newStr = std::wstring(oldBuff) + std::wstring(buff);
+			if (newStr.length() > 30) {
+				newStr = newStr.substr(1);
+			}
+			m_staticKeyboard.SetWindowText(newStr.c_str());
+		}
+	}
+
 private:
 	HWND m_hwndNextViewer;
 	CButton m_btnStart;
 	CListBox m_listContent;
+	CStatic m_staticMouse;
+	CStatic m_staticKeyboard;
 };
