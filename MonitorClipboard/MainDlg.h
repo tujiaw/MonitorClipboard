@@ -4,6 +4,12 @@
 
 #pragma once
 
+#include <string>
+
+// 自定义消息
+// 获取剪切板内容
+#define WM_CUSTOM_GET_CLIPBOARD WM_USER + 1
+
 class CMainDlg : public CDialogImpl<CMainDlg>, public CUpdateUI<CMainDlg>,
 		public CMessageFilter, public CIdleHandler
 {
@@ -27,6 +33,9 @@ public:
 	BEGIN_MSG_MAP(CMainDlg)
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
+		MESSAGE_HANDLER(WM_CHANGECBCHAIN, OnChangeCBChain)
+		MESSAGE_HANDLER(WM_DRAWCLIPBOARD, OnDrawClipboard)
+		MESSAGE_HANDLER(WM_CUSTOM_GET_CLIPBOARD, OnCustomGetClipboard)
 		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
 		COMMAND_ID_HANDLER(IDOK, OnOK)
 		COMMAND_ID_HANDLER(IDCANCEL, OnCancel)
@@ -57,6 +66,11 @@ public:
 
 		UIAddChildWindowContainer(m_hWnd);
 
+		//////////////////////////////////////////////////////////////////////////
+		m_hwndNextViewer = nullptr;
+		m_btnStart.Attach(GetDlgItem(IDC_BUTTON_START));
+		m_listContent.Attach(GetDlgItem(IDC_LIST_HISTEXT));
+
 		return TRUE;
 	}
 
@@ -71,10 +85,51 @@ public:
 		return 0;
 	}
 
+
+	LRESULT OnChangeCBChain(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& /*bHandled*/)
+	{
+		if ((HWND)wParam == m_hwndNextViewer) {
+			m_hwndNextViewer = (HWND)lParam;
+		} else if (m_hwndNextViewer) {
+			SendMessage(m_hwndNextViewer, uMsg, wParam, lParam);
+		}
+		OutputDebugString(L"11");
+		return 0;
+	}
+
+	LRESULT OnDrawClipboard(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& /*bHandled*/)
+	{
+		if (m_hwndNextViewer) {
+			SendMessage(m_hwndNextViewer, uMsg, wParam, lParam);
+		}
+		PostMessage(WM_CUSTOM_GET_CLIPBOARD);
+		return 0;
+	}
+
+	LRESULT OnCustomGetClipboard(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& /*bHandled*/)
+	{
+		if (!OpenClipboard()) {
+			return 0;
+		}
+
+		HANDLE handle = GetClipboardData(CF_UNICODETEXT);
+		if (handle) {
+			LPTSTR content = (LPTSTR)GlobalLock(handle);
+			if (content) {
+				OutputDebugString(content);
+				m_listContent.InsertString(0, content);
+				GlobalUnlock(handle);
+			}
+		}
+
+		CloseClipboard();
+		return 0;
+	}
+	
 	LRESULT OnAppAbout(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
-		CAboutDlg dlg;
-		dlg.DoModal();
+		//CAboutDlg dlg;
+		//dlg.DoModal();
 		return 0;
 	}
 
@@ -98,10 +153,22 @@ public:
 	}
 	LRESULT OnBnClickedButtonStart(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
-		m_hwndNextViewer = SetClipboardViewer();
+		TCHAR buf[1024] = { 0 };
+		m_btnStart.GetWindowText(buf, sizeof(buf) / sizeof(buf[0]));
+		std::wstring wstr(buf);
+		if (wstr == L"Start") {
+			m_hwndNextViewer = SetClipboardViewer();
+			m_btnStart.SetWindowText(L"Stop");
+		} else {
+			ChangeClipboardChain(m_hwndNextViewer);
+			m_btnStart.SetWindowText(L"Start");
+		}
+		
 		return 0;
 	}
 
 private:
 	HWND m_hwndNextViewer;
+	CButton m_btnStart;
+	CListBox m_listContent;
 };
