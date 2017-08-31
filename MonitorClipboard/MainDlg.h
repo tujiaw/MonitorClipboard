@@ -30,6 +30,7 @@ public:
 		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
 		COMMAND_ID_HANDLER(IDOK, OnOK)
 		COMMAND_ID_HANDLER(IDCANCEL, OnCancel)
+		COMMAND_HANDLER(IDC_BUTTON_START, BN_CLICKED, OnBnClickedButtonStart)
 	END_MSG_MAP()
 
 // Handler prototypes (uncomment arguments if needed):
@@ -95,4 +96,12 @@ public:
 		DestroyWindow();
 		::PostQuitMessage(nVal);
 	}
+	LRESULT OnBnClickedButtonStart(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		m_hwndNextViewer = SetClipboardViewer();
+		return 0;
+	}
+
+private:
+	HWND m_hwndNextViewer;
 };
