@@ -70,7 +70,7 @@ public:
 		m_btnStart.Attach(GetDlgItem(IDC_BUTTON_START));
 		m_listContent.Attach(GetDlgItem(IDC_LIST_HISTEXT));
 		m_staticMouse.Attach(GetDlgItem(IDC_STATIC_MOUSEPOS));
-		m_staticKeyboard.Attach(GetDlgItem(IDC_STATIC_KEYBOARD));
+		m_editKeyboard.Attach(GetDlgItem(IDC_EDIT_KEYBOARD));
 		HookEvent::instance()->addMessageCallback(WM_MOUSEMOVE,
 			std::bind(&CMainDlg::OnMouseMoveHook, this, std::placeholders::_1, std::placeholders::_2));
 		HookEvent::instance()->addMessageCallback(WM_KEYDOWN,
@@ -114,6 +114,11 @@ public:
 	{
 		if (!OpenClipboard()) {
 			return 0;
+		}
+
+		int count = m_listContent.GetCount();
+		if (count > 3000) {
+			m_listContent.DeleteString(count - 1);
 		}
 
 		HANDLE handle = GetClipboardData(CF_UNICODETEXT);
@@ -188,15 +193,15 @@ public:
 	{
 		KBDLLHOOKSTRUCT *p = (KBDLLHOOKSTRUCT*)lParam;
 		if (p) {
-			wchar_t buff[10], oldBuff[256];
+			wchar_t buff[10], oldBuff[10240 + 2];
 			BYTE keyState[256] = { 0 };
 			int result = ToUnicodeEx(p->vkCode, p->scanCode, keyState, buff, _countof(buff), 0, NULL);
-			m_staticKeyboard.GetWindowText(oldBuff, _countof(oldBuff));
+			m_editKeyboard.GetWindowText(oldBuff, _countof(oldBuff));
 			std::wstring newStr = std::wstring(oldBuff) + std::wstring(buff);
-			if (newStr.length() > 30) {
-				newStr = newStr.substr(1);
+			if (newStr.size() >= 10240) {
+				newStr = newStr.substr(1024);
 			}
-			m_staticKeyboard.SetWindowText(newStr.c_str());
+			m_editKeyboard.SetWindowText(newStr.c_str());
 		}
 	}
 
@@ -205,5 +210,5 @@ private:
 	CButton m_btnStart;
 	CListBox m_listContent;
 	CStatic m_staticMouse;
-	CStatic m_staticKeyboard;
+	CEdit m_editKeyboard;
 };
